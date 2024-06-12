@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, map, of, tap, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, map, of, shareReplay, switchMap, tap, throwError } from 'rxjs';
 import { Product } from './product';
 import { ProductData } from './product-data';
 import { HttpErrorService } from '../utilities/http-error.service';
@@ -18,29 +18,32 @@ export class ProductService {
   private errorService = inject(HttpErrorService);
   private reviewService = inject(ReviewService);
 
+  productSelectedSubject = new BehaviorSubject<number | undefined>(undefined);
+
   // For the constructor to treat this parameters as part of dependency injection 
   // add accessability keyword at the beginning
   // constructor(private http: HttpClient)
   // {}
 
-  getProducts(): Observable<Product[]> {
-    return this.http.get<Product[]>(this.productsUrl)
-    .pipe(
-      tap(() => console.log('In http.get pipeline')),
-      catchError(err => this.handleError(err))
-    );
-  }
+  readonly product$ = this.http.get<Product[]>(this.productsUrl)
+  .pipe(
+    tap((p) => console.log(JSON.stringify(p))),
+    shareReplay(1),
+    catchError(err => this.handleError(err))
+  );
+
 
   getProduct(id: number) {
     const productUrl = this.productsUrl + '/' +id;
     return this.http.get<Product>(productUrl)
     .pipe(
       tap(() => console.log('In http.get by id pipeline')),
+      switchMap(product => this.getProductWithReviews(product)),
       catchError(err => this.handleError(err))
     )
   }
 
-  private getProductWithReview(product: Product): Observable<Product> {
+  private getProductWithReviews(product: Product): Observable<Product> {
     if(product.hasReviews) {
       return this.http.get<Review[]>(this.reviewService.getReviewUrl(product.id))
       .pipe(
